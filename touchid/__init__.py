@@ -4,17 +4,19 @@ A module for accessing the Touch ID sensor in your Mac's Touch Bar.
 Requires pyobjc to be installed
 """
 
+__all__ = ("authenticate", "is_available")
+
 import ctypes
 import sys
+from dataclasses import dataclass
+from typing import Protocol
 
+from LocalAuthentication import LAContext  # type: ignore[import-untyped]
 from LocalAuthentication import (
-    LAContext,
-    LAPolicyDeviceOwnerAuthenticationWithBiometrics,
+    LAPolicyDeviceOwnerAuthenticationWithBiometrics as kTouchIdPolicy,
 )
 
-kTouchIdPolicy = LAPolicyDeviceOwnerAuthenticationWithBiometrics
-
-c = ctypes.cdll.LoadLibrary(None)
+c = ctypes.CDLL(None)
 
 DISPATCH_TIME_FOREVER = sys.maxsize
 
@@ -31,33 +33,43 @@ dispatch_semaphore_signal.restype = ctypes.c_long
 dispatch_semaphore_signal.argtypes = [ctypes.c_void_p]
 
 
-def is_available():
+@dataclass()
+class _Result:
+    success: bool
+    error: str | None
+
+
+class _NSError(Protocol):
+    def localizedDescription(self) -> str: ...
+
+
+def is_available() -> bool:
     context = LAContext.new()
-    return context.canEvaluatePolicy_error_(kTouchIdPolicy, None)[0]
+    can_evaluate: bool = context.canEvaluatePolicy_error_(kTouchIdPolicy, None)[0]
+    return can_evaluate
 
 
-def authenticate(reason="authenticate via Touch ID"):
-    context = LAContext.new()
-
-    can_evaluate = context.canEvaluatePolicy_error_(kTouchIdPolicy, None)[0]
-    if not can_evaluate:
+def authenticate(reason: str = "authenticate via Touch ID") -> bool:
+    if not is_available():
         raise Exception("Touch ID isn't available on this machine")
 
+    context = LAContext.new()
     sema = dispatch_semaphore_create(0)
+    res: _Result
 
-    # we can't reassign objects from another scope, but we can modify them
-    res = {"success": False, "error": None}
+    def cb(_success: bool, _error: _NSError | None) -> None:
+        nonlocal res
 
-    def cb(_success, _error):
-        res["success"] = _success
-        if _error:
-            res["error"] = _error.localizedDescription()
+        res = _Result(
+            success=_success,
+            error=_error.localizedDescription() if _error else None,
+        )
         dispatch_semaphore_signal(sema)
 
     context.evaluatePolicy_localizedReason_reply_(kTouchIdPolicy, reason, cb)
     dispatch_semaphore_wait(sema, DISPATCH_TIME_FOREVER)
 
-    if res["error"]:
-        raise Exception(res["error"])
+    if res.error:
+        raise Exception(res.error)
 
-    return res["success"]
+    return res.success

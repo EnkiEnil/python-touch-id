@@ -4,20 +4,19 @@ A module for accessing the Touch ID sensor in your Mac's Touch Bar.
 Requires pyobjc to be installed
 """
 
-import sys
 import ctypes
-from LocalAuthentication import LAContext
-from LocalAuthentication import LAPolicyDeviceOwnerAuthenticationWithBiometrics
+import sys
+
+from LocalAuthentication import (
+    LAContext,
+    LAPolicyDeviceOwnerAuthenticationWithBiometrics,
+)
 
 kTouchIdPolicy = LAPolicyDeviceOwnerAuthenticationWithBiometrics
 
 c = ctypes.cdll.LoadLibrary(None)
 
-PY3 = sys.version_info[0] >= 3
-if PY3:
-    DISPATCH_TIME_FOREVER = sys.maxsize
-else:
-    DISPATCH_TIME_FOREVER = sys.maxint
+DISPATCH_TIME_FOREVER = sys.maxsize
 
 dispatch_semaphore_create = c.dispatch_semaphore_create
 dispatch_semaphore_create.restype = ctypes.c_void_p
@@ -37,7 +36,7 @@ def is_available():
     return context.canEvaluatePolicy_error_(kTouchIdPolicy, None)[0]
 
 
-def authenticate(reason='authenticate via Touch ID'):
+def authenticate(reason="authenticate via Touch ID"):
     context = LAContext.new()
 
     can_evaluate = context.canEvaluatePolicy_error_(kTouchIdPolicy, None)[0]
@@ -47,18 +46,18 @@ def authenticate(reason='authenticate via Touch ID'):
     sema = dispatch_semaphore_create(0)
 
     # we can't reassign objects from another scope, but we can modify them
-    res = {'success': False, 'error': None}
+    res = {"success": False, "error": None}
 
     def cb(_success, _error):
-        res['success'] = _success
+        res["success"] = _success
         if _error:
-            res['error'] = _error.localizedDescription()
+            res["error"] = _error.localizedDescription()
         dispatch_semaphore_signal(sema)
 
     context.evaluatePolicy_localizedReason_reply_(kTouchIdPolicy, reason, cb)
     dispatch_semaphore_wait(sema, DISPATCH_TIME_FOREVER)
 
-    if res['error']:
-        raise Exception(res['error'])
+    if res["error"]:
+        raise Exception(res["error"])
 
-    return res['success']
+    return res["success"]

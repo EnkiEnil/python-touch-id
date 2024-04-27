@@ -5,7 +5,7 @@
 ## Install
 
 ```bash
-$ pip install touchid
+$ pip install git+https://github.com/parafoxia/python-touch-id
 ```
 
 
@@ -19,11 +19,11 @@ success = touchid.authenticate()
 
 ## API
 
-#### `touchid.is_available()`
+#### `touchid.is_available() -> bool`
 Check whether Touch ID is available on the current machine
 
 
-#### `touchid.authenticate(reason='authenticate via Touch ID')`
+#### `touchid.authenticate(reason: str = 'authenticate via Touch ID') -> bool`
 Authenticate via Touch ID.  
 This method returns a `bool` determining whether the Touch ID authentication completed successfully.
 If the user cancels the authentication, this method will raise an Exception
